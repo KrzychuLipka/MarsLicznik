@@ -128,18 +128,49 @@ const distanceLine = new THREE.Line(distanceGeometry, distanceMaterial);
 scene.add(distanceLine);
 
 //
-// LABEL
+// ODL. ZIEMIA-MARS
 //
 
-const label = document.createElement("div");
-label.style.position = "absolute";
-label.style.top = "20px";
-label.style.left = "20px";
-label.style.color = "white";
-label.style.fontFamily = "monospace";
-label.style.fontSize = "20px";
-label.style.zIndex = "100";
-container.appendChild(label);
+// const label = document.createElement("div");
+// label.style.position = "absolute";
+// label.style.top = "20px";
+// label.style.left = "20px";
+// label.style.color = "white";
+// label.style.fontFamily = "monospace";
+// label.style.fontSize = "20px";
+// label.style.zIndex = "100";
+// container.appendChild(label);
+
+//
+// POZOSTAŁE INFORMACJE
+//
+
+const SIMULATION_START_DAYS_OFFSET = 0;
+const STEP_HOURS = 1; // musi odpowiadać backendowi
+const debugPanel = document.createElement("div");
+
+debugPanel.style.position = "absolute";
+debugPanel.style.top = "20px";
+debugPanel.style.right = "20px";
+debugPanel.style.color = "white";
+debugPanel.style.fontFamily = "monospace";
+debugPanel.style.fontSize = "14px";
+debugPanel.style.lineHeight = "1.5";
+debugPanel.style.zIndex = "100";
+debugPanel.style.background = "rgba(0,0,0,0.4)";
+debugPanel.style.padding = "12px";
+debugPanel.style.borderRadius = "8px";
+
+container.appendChild(debugPanel);
+
+function getSimulationDate(simulationIndex) {
+    const hoursFromStart = simulationIndex * STEP_HOURS;
+    const secondsFromStart = hoursFromStart * 3600;
+
+    const startDate = new Date("2025-01-01T00:00:00Z"); // musi odpowiadać backendowi
+
+    return new Date(startDate.getTime() + secondsFromStart * 1000);
+}
 
 //
 // PARAMETRY
@@ -359,9 +390,33 @@ function animate() {
         const dz = mars.position.z - earth.position.z;
 
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz) / SCALE;
+        const simDate = getSimulationDate(simulationIndex);
+        const hoursElapsed = simulationIndex * STEP_HOURS;
+        const daysElapsed = hoursElapsed / 24;
 
-        label.innerText =
-            `ODLEGŁOŚĆ ZIEMIA → MARS\n\n${Math.round(distance).toLocaleString()} km`;
+        // label.innerText =
+        //     `ODLEGŁOŚĆ ZIEMIA → MARS\n\n${Math.round(distance).toLocaleString()} km`;
+        debugPanel.innerHTML = `
+        <b>SYMULACJA NASA SPICE</b><br><br>
+
+        Data symulacji:<br>
+        ${simDate.toUTCString()}<br><br>
+
+        Indeks kroku:<br>
+        ${simulationIndex.toFixed(2)}<br><br>
+
+        Czas od startu:<br>
+        ${hoursElapsed.toFixed(1)} h<br>
+        (${daysElapsed.toFixed(2)} dni)<br><br>
+
+        Odległość Ziemia → Mars:<br>
+        ${Math.round(distance).toLocaleString()} km<br><br>
+
+        Parametry:<br>
+        STEP_HOURS: ${STEP_HOURS} h<br>
+        SCALE: ${SCALE}<br>
+        SPEED: ${SIMULATION_SPEED}
+        `;
 
         earth.rotation.y += 0.01 * delta;
         mars.rotation.y += 0.008 * delta;
