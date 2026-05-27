@@ -1,42 +1,124 @@
 import os
 import math
+import atexit
 from datetime import datetime, timezone
-from flask import Flask, jsonify
+
+from flask import Flask, jsonify, request
 from flask_cors import CORS
+
 import spiceypy as spice
 
+# =========================================================
+# CONFIG
+# =========================================================
+
 PORT_NUMBER = 5000
+
 EARTH_ID = 399
 MARS_ID = 4
+SUN_ID = 10
+
 KERNEL_DIR = "kernels"
+
 KERNEL_FILES = [
     "naif0012.tls",
     "pck00010.tpc",
     "de432s.bsp",
 ]
 
+# Mars orbital period ~= 687 days
+# 17000h ~= 708 days
+DEFAULT_STEPS = 17000
+DEFAULT_STEP_HOURS = 1.0
+
+MAX_STEPS = 50000
+
+# =========================================================
+# APP
+# =========================================================
+
 app = Flask(__name__)
 CORS(app)
 
+# =========================================================
+# GLOBAL STATE
+# =========================================================
+
+kernels_loaded = False
+BASE_ET = None
+
+# =========================================================
+# SPICE SETUP
+# =========================================================
+
 
 def load_kernels():
+    global kernels_loaded
+    global BASE_ET
+
+    if kernels_loaded:
+        return
+
+    print("===================================")
+    print("LOADING SPICE KERNELS")
+    print("===================================")
+
     for filename in KERNEL_FILES:
+
         full_path = os.path.join(KERNEL_DIR, filename)
+
         if not os.path.exists(full_path):
-            raise FileNotFoundError(f"Brak kernela: {full_path}")
+            raise FileNotFoundError(f"Missing kernel: {full_path}")
+
         spice.furnsh(full_path)
-        print(f"Kernel loaded: {filename}")
+
+        print(f"Loaded: {filename}")
+
+    # deterministic epoch
+    BASE_ET = spice.str2et("2025-01-01T00:00:00")
+
+    kernels_loaded = True
+
+    print("===================================")
+    print("SPICE READY")
+    print("===================================")
+
+
+def unload_kernels():
+    try:
+        spice.kclear()
+        print("SPICE kernels unloaded")
+    except Exception:
+        pass
+
+
+atexit.register(unload_kernels)
+
+# =========================================================
+# TIME
+# =========================================================
 
 
 def current_et():
+
     now_utc = datetime.now(timezone.utc)
+
     utc_string = now_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+
     et = spice.str2et(utc_string)
+
     return et, utc_string
 
 
+# =========================================================
+# SPACE MATH
+# =========================================================
+
+
 def get_body_position(body_id, et):
-    state, _ = spice.spkgeo(body_id, et, "J2000", 0)
+
+    state, _ = spice.spkgeo(body_id, et, "J2000", SUN_ID)
+
     return {
         "x": float(state[0]),
         "y": float(state[1]),
@@ -48,22 +130,44 @@ def get_body_position(body_id, et):
 
 
 def calculate_distance(a, b):
+
     dx = b["x"] - a["x"]
     dy = b["y"] - a["y"]
     dz = b["z"] - a["z"]
+
     return math.sqrt(dx * dx + dy * dy + dz * dz)
+
+
+# =========================================================
+# ROUTES
+# =========================================================
+
+
+@app.route("/health")
+def health():
+
+    return jsonify({"status": "ok", "spice_loaded": kernels_loaded})
 
 
 @app.route("/positions")
 def positions():
+
+    if not kernels_loaded:
+        load_kernels()
+
     et, utc_string = current_et()
+
     earth = get_body_position(EARTH_ID, et)
+
     mars = get_body_position(MARS_ID, et)
+
     distance_km = calculate_distance(earth, mars)
+
     return jsonify(
         {
             "utc": utc_string,
             "frame": "J2000",
+            "observer": "SUN",
             "units": "km",
             "earth": earth,
             "mars": mars,
@@ -71,14 +175,110 @@ def positions():
         }
     )
 
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok"})
+
+@app.route("/trajectory")
+def trajectory():
+
+    if not kernels_loaded:
+        load_kernels()
+
+    # =====================================================
+    # PARAMS
+    # =====================================================
+
+    try:
+
+        steps = int(request.args.get("steps", DEFAULT_STEPS))
+
+        step_hours = float(request.args.get("step_hours", DEFAULT_STEP_HOURS))
+
+        days_offset = float(request.args.get("days_offset", 0))
+
+    except ValueError:
+
+        return jsonify({"error": "Invalid query params"}), 400
+
+    # =====================================================
+    # VALIDATION
+    # =====================================================
+
+    if steps < 10:
+        return jsonify({"error": "steps must be >= 10"}), 400
+
+    if steps > MAX_STEPS:
+        return jsonify({"error": f"steps too large (max {MAX_STEPS})"}), 400
+
+    if step_hours <= 0:
+        return jsonify({"error": "step_hours must be > 0"}), 400
+
+    # =====================================================
+    # TIMELINE
+    # =====================================================
+
+    et_start = BASE_ET + (days_offset * 86400.0)
+
+    earth_positions = []
+    mars_positions = []
+
+    # =====================================================
+    # ORBIT GENERATION
+    # =====================================================
+
+    for i in range(steps):
+
+        et = et_start + (i * step_hours * 3600.0)
+
+        earth = get_body_position(EARTH_ID, et)
+
+        mars = get_body_position(MARS_ID, et)
+
+        earth_positions.append(
+            {
+                "x": earth["x"],
+                "y": earth["y"],
+                "z": earth["z"],
+            }
+        )
+
+        mars_positions.append(
+            {
+                "x": mars["x"],
+                "y": mars["y"],
+                "z": mars["z"],
+            }
+        )
+
+    # =====================================================
+    # RESPONSE
+    # =====================================================
+
+    total_hours = steps * step_hours
+    total_days = total_hours / 24.0
+
+    return jsonify(
+        {
+            "frame": "J2000",
+            "observer": "SUN",
+            "units": "km",
+            "base_et": BASE_ET,
+            "steps": steps,
+            "step_hours": step_hours,
+            "days_offset": days_offset,
+            "total_days": total_days,
+            "earth": earth_positions,
+            "mars": mars_positions,
+        }
+    )
+
+
+# =========================================================
+# MAIN
+# =========================================================
 
 if __name__ == "__main__":
 
     print("===================================")
-    print("MARS DISTANCE API")
+    print("NASA SPICE ORBITAL API")
     print("===================================")
 
     load_kernels()
