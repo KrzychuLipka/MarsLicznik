@@ -3,8 +3,9 @@ import math
 import atexit
 from datetime import datetime, timezone
 
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Query
 
 import spiceypy as spice
 
@@ -37,8 +38,15 @@ MAX_STEPS = 50000
 # APP
 # =========================================================
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # możesz ograniczyć później
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # =========================================================
 # GLOBAL STATE
@@ -143,13 +151,12 @@ def calculate_distance(a, b):
 # =========================================================
 
 
-@app.route("/health")
+@app.get("/health")
 def health():
+    return {"status": "ok", "spice_loaded": kernels_loaded}
 
-    return jsonify({"status": "ok", "spice_loaded": kernels_loaded})
 
-
-@app.route("/positions")
+@app.get("/positions")
 def positions():
 
     if not kernels_loaded:
@@ -163,53 +170,39 @@ def positions():
 
     distance_km = calculate_distance(earth, mars)
 
-    return jsonify(
-        {
-            "utc": utc_string,
-            "frame": "J2000",
-            "observer": "SUN",
-            "units": "km",
-            "earth": earth,
-            "mars": mars,
-            "distance_km": distance_km,
-        }
-    )
+    return {
+        "utc": utc_string,
+        "frame": "J2000",
+        "observer": "SUN",
+        "units": "km",
+        "earth": earth,
+        "mars": mars,
+        "distance_km": distance_km,
+    }
 
 
-@app.route("/trajectory")
-def trajectory():
+@app.get("/trajectory")
+def trajectory(
+    steps: int = Query(DEFAULT_STEPS, le=MAX_STEPS),
+    step_hours: float = Query(DEFAULT_STEP_HOURS),
+    days_offset: float = Query(0.0),
+):
 
     if not kernels_loaded:
         load_kernels()
-
-    # =====================================================
-    # PARAMS
-    # =====================================================
-
-    try:
-
-        steps = int(request.args.get("steps", DEFAULT_STEPS))
-
-        step_hours = float(request.args.get("step_hours", DEFAULT_STEP_HOURS))
-
-        days_offset = float(request.args.get("days_offset", 0))
-
-    except ValueError:
-
-        return jsonify({"error": "Invalid query params"}), 400
 
     # =====================================================
     # VALIDATION
     # =====================================================
 
     if steps < 10:
-        return jsonify({"error": "steps must be >= 10"}), 400
+        return {"error": "steps must be >= 10"}, 400
 
     if steps > MAX_STEPS:
-        return jsonify({"error": f"steps too large (max {MAX_STEPS})"}), 400
+        return {"error": f"steps too large (max {MAX_STEPS})"}, 400
 
     if step_hours <= 0:
-        return jsonify({"error": "step_hours must be > 0"}), 400
+        return {"error": "step_hours must be > 0"}, 400
 
     # =====================================================
     # TIMELINE
@@ -255,20 +248,18 @@ def trajectory():
     total_hours = steps * step_hours
     total_days = total_hours / 24.0
 
-    return jsonify(
-        {
-            "frame": "J2000",
-            "observer": "SUN",
-            "units": "km",
-            "base_et": BASE_ET,
-            "steps": steps,
-            "step_hours": step_hours,
-            "days_offset": days_offset,
-            "total_days": total_days,
-            "earth": earth_positions,
-            "mars": mars_positions,
-        }
-    )
+    return {
+        "frame": "J2000",
+        "observer": "SUN",
+        "units": "km",
+        "base_et": BASE_ET,
+        "steps": steps,
+        "step_hours": step_hours,
+        "days_offset": days_offset,
+        "total_days": total_days,
+        "earth": earth_positions,
+        "mars": mars_positions,
+    }
 
 
 # =========================================================
