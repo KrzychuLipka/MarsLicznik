@@ -330,6 +330,83 @@ debugPanel.appendChild(accent);
 
 container.appendChild(debugPanel);
 
+//
+// LEGENDA
+//
+const legend = document.createElement("div");
+
+legend.style.position = "absolute";
+legend.style.left = "24px";
+legend.style.bottom = "24px";
+
+legend.style.display = "flex";
+legend.style.alignItems = "center";
+legend.style.gap = "36px";
+
+legend.style.padding = "18px 30px";
+
+legend.style.background = "rgba(5, 14, 32, 0.82)";
+legend.style.backdropFilter = "blur(10px)";
+
+legend.style.border =
+    "1px solid rgba(80,160,255,0.25)";
+
+legend.style.borderRadius = "14px";
+
+legend.style.boxShadow =
+    "0 10px 30px rgba(0,0,0,0.4)";
+
+legend.style.color = "#dcecff";
+
+legend.style.fontFamily =
+    "'IBM Plex Mono', 'JetBrains Mono', monospace";
+
+legend.style.fontSize = "14px";
+
+legend.style.zIndex = "100";
+
+container.appendChild(legend);
+
+function createLegendItem(color, label) {
+
+    const item = document.createElement("div");
+
+    item.style.display = "flex";
+    item.style.alignItems = "center";
+    item.style.gap = "10px";
+
+    const dot = document.createElement("div");
+
+    dot.style.width = "18px";
+    dot.style.height = "18px";
+
+    dot.style.borderRadius = "50%";
+    dot.style.background = color;
+
+    dot.style.boxShadow =
+        `0 0 12px ${color}`;
+
+    const text = document.createElement("span");
+    text.textContent = label;
+
+    item.appendChild(dot);
+    item.appendChild(text);
+
+    return item;
+}
+
+legend.appendChild(
+    createLegendItem("#4aa3ff", "Ziemia")
+);
+
+legend.appendChild(
+    createLegendItem("#ff6a2a", "Mars")
+);
+
+legend.appendChild(
+    createLegendItem("#ffcc33", "Słońce")
+);
+
 const controlsPanel = document.createElement("div");
 
 function getSimulationDate(simulationIndex) {
@@ -575,7 +652,7 @@ function animate() {
         distanceField.value.textContent = `${Math.round(distance).toLocaleString()} km`;
 
         speedField.value.textContent = formatSpeed(SIMULATION_SPEED);
-        
+
         earth.rotation.y += 0.01 * delta;
         mars.rotation.y += 0.008 * delta;
     }
