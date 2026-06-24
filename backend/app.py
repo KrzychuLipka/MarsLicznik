@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Query
+from fastapi import HTTPException
 
 import spiceypy as spice
 
@@ -53,7 +54,6 @@ app.add_middleware(
 # =========================================================
 
 kernels_loaded = False
-BASE_ET = None
 
 # =========================================================
 # SPICE SETUP
@@ -62,7 +62,6 @@ BASE_ET = None
 
 def load_kernels():
     global kernels_loaded
-    global BASE_ET
 
     if kernels_loaded:
         return
@@ -81,9 +80,6 @@ def load_kernels():
         spice.furnsh(full_path)
 
         print(f"Loaded: {filename}")
-
-    # deterministic epoch
-    BASE_ET = spice.str2et("2025-01-01T00:00:00")
 
     kernels_loaded = True
 
@@ -183,9 +179,9 @@ def positions():
 
 @app.get("/trajectory")
 def trajectory(
+    start_date: str = Query("2025-01-01"),
     steps: int = Query(DEFAULT_STEPS, le=MAX_STEPS),
     step_hours: float = Query(DEFAULT_STEP_HOURS),
-    days_offset: float = Query(0.0),
 ):
 
     if not kernels_loaded:
@@ -194,21 +190,23 @@ def trajectory(
     # =====================================================
     # VALIDATION
     # =====================================================
-
     if steps < 10:
-        return {"error": "steps must be >= 10"}, 400
+        raise HTTPException(status_code=400, detail="steps must be >= 10")
 
     if steps > MAX_STEPS:
-        return {"error": f"steps too large (max {MAX_STEPS})"}, 400
+        raise HTTPException(status_code=400, detail=f"steps too large (max {MAX_STEPS})")
 
     if step_hours <= 0:
-        return {"error": "step_hours must be > 0"}, 400
+        raise HTTPException(status_code=400, detail="step_hours must be > 0")
 
     # =====================================================
     # TIMELINE
     # =====================================================
 
-    et_start = BASE_ET + (days_offset * 86400.0)
+    try:
+        et_start = spice.str2et(f"{start_date}T00:00:00")
+    except Exception: 
+        raise HTTPException(status_code=400, detail="invalid start_date")
 
     earth_positions = []
     mars_positions = []
@@ -245,18 +243,13 @@ def trajectory(
     # RESPONSE
     # =====================================================
 
-    total_hours = steps * step_hours
-    total_days = total_hours / 24.0
-
     return {
         "frame": "J2000",
+        "start_date": start_date,
         "observer": "SUN",
         "units": "km",
-        "base_et": BASE_ET,
         "steps": steps,
         "step_hours": step_hours,
-        "days_offset": days_offset,
-        "total_days": total_days,
         "earth": earth_positions,
         "mars": mars_positions,
     }
