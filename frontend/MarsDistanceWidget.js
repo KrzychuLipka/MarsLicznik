@@ -184,24 +184,6 @@ const distanceMaterial = new THREE.LineDashedMaterial({
 const distanceLine = new THREE.Line(distanceGeometry, distanceMaterial);
 scene.add(distanceLine);
 
-//
-// ODL. ZIEMIA-MARS
-//
-
-// const label = document.createElement("div");
-// label.style.position = "absolute";
-// label.style.top = "20px";
-// label.style.left = "20px";
-// label.style.color = "white";
-// label.style.fontFamily = "monospace";
-// label.style.fontSize = "20px";
-// label.style.zIndex = "100";
-// container.appendChild(label);
-
-//
-// POZOSTAŁE INFORMACJE
-//
-
 const STEP_HOURS = 1; // musi odpowiadać backendowi
 const debugPanel = document.createElement("div");
 
@@ -265,7 +247,7 @@ speedEl.textContent = "";
 const speedSlider = document.createElement("input");
 speedSlider.type = "range";
 speedSlider.min = "0.01";   // ~15 min symulacji / sek
-speedSlider.max = "5";      // 5 dni / sek (już bardzo szybkie)
+speedSlider.max = "5";      // 5 dni / sek
 speedSlider.step = "0.01";
 
 function setSimulationSpeed(v) {
