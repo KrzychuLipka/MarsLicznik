@@ -52,15 +52,39 @@ scene.add(new THREE.AmbientLight(0x222222));
 // GWIAZDY
 //
 
+function generateCircleTexture() {
+    const size = 64;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+
+    const ctx = canvas.getContext("2d");
+
+    const gradient = ctx.createRadialGradient(
+        size / 2, size / 2, 0,
+        size / 2, size / 2, size / 2
+    );
+
+    gradient.addColorStop(0, "white");
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+}
+
 function createStars() {
     const geometry = new THREE.BufferGeometry();
     const vertices = [];
 
-    for (let i = 0; i < 12000; i++) {
+    for (let i = 0; i < 1500; i++) {
         vertices.push(
-            THREE.MathUtils.randFloatSpread(4000),
-            THREE.MathUtils.randFloatSpread(4000),
-            THREE.MathUtils.randFloatSpread(4000)
+            THREE.MathUtils.randFloatSpread(1000),
+            THREE.MathUtils.randFloatSpread(1000),
+            THREE.MathUtils.randFloatSpread(1000)
         );
     }
 
@@ -69,13 +93,17 @@ function createStars() {
         new THREE.Float32BufferAttribute(vertices, 3)
     );
 
+    const starTexture = generateCircleTexture();
+
     const stars = new THREE.Points(
         geometry,
         new THREE.PointsMaterial({
             color: 0xffffff,
-            size: 0.25,
+            size: 2,
+            map: starTexture,
             transparent: true,
-            opacity: 0.7
+            opacity: 0.9,
+            depthWrite: false
         })
     );
 
