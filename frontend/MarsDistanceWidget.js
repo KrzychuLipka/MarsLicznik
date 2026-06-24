@@ -208,25 +208,51 @@ const debugPanel = document.createElement("div");
 let simulationStartDate = "2025-01-01";
 
 debugPanel.style.position = "absolute";
-debugPanel.style.top = "20px";
-debugPanel.style.right = "20px";
-debugPanel.style.color = "white";
-debugPanel.style.fontFamily = "monospace";
-debugPanel.style.fontSize = "14px";
-debugPanel.style.lineHeight = "1.5";
-debugPanel.style.zIndex = "100";
-debugPanel.style.background = "rgba(0,0,0,0.4)";
-debugPanel.style.padding = "12px";
-debugPanel.style.borderRadius = "8px";
+debugPanel.style.top = "24px";
+debugPanel.style.right = "24px";
+debugPanel.style.width = "340px";
 
-const titleEl = document.createElement("b");
-titleEl.textContent = "SYMULACJA NASA SPICE";
+debugPanel.style.padding = "24px";
+debugPanel.style.borderRadius = "14px";
+
+debugPanel.style.background =
+    "rgba(5, 14, 32, 0.82)";
+
+debugPanel.style.backdropFilter = "blur(10px)";
+
+debugPanel.style.border =
+    "1px solid rgba(80, 160, 255, 0.25)";
+
+debugPanel.style.boxShadow = `
+    0 0 0 1px rgba(60,120,255,0.08),
+    0 10px 30px rgba(0,0,0,0.45)
+`;
+
+debugPanel.style.color = "#dcecff";
+
+debugPanel.style.fontFamily =
+    "'IBM Plex Mono', 'JetBrains Mono', monospace";
+
+debugPanel.style.fontSize = "14px";
+debugPanel.style.lineHeight = "1.8";
+debugPanel.style.letterSpacing = "0.3px";
+
+debugPanel.style.zIndex = "100";
+
+const titleEl = document.createElement("div");
+titleEl.style.marginBottom = "16px";
+
+titleEl.textContent = "NASA SPICE — orbit tracker";
+
+titleEl.style.fontSize = "16px";
+titleEl.style.color = "#b9d9ff";
 
 const dateEl = document.createElement("div");
 
 const dateSlider = document.createElement("input");
 dateSlider.type = "date";
 dateSlider.value = simulationStartDate;
+dateSlider.style.marginBottom = "16px";
 
 const indexEl = document.createElement("div");
 const timeEl = document.createElement("div");
@@ -250,21 +276,57 @@ function setSimulationSpeed(v) {
 
 setSimulationSpeed(SIMULATION_SPEED);
 
-const speedLabel = document.createElement("div");
-speedLabel.textContent = "Tempo (dni / sek):";
-speedLabel.style.marginTop = "8px";
+function makeField(label) {
+    const wrapper = document.createElement("div");
+
+    const caption = document.createElement("div");
+    caption.textContent = label;
+
+    caption.style.color = "#6e88b8";
+    caption.style.fontSize = "12px";
+    caption.style.textTransform = "uppercase";
+    caption.style.letterSpacing = "1px";
+
+    const value = document.createElement("div");
+    value.style.color = "#eef6ff";
+    value.style.fontSize = "16px";
+    value.style.marginTop = "2px";
+
+    wrapper.style.marginBottom = "18px";
+
+    wrapper.appendChild(caption);
+    wrapper.appendChild(value);
+
+    return { wrapper, value };
+}
+
+const dateField = makeField("Data symulacji");
+const timeField = makeField("Czas misji");
+const distanceField = makeField("Ziemia → Mars");
+const speedField = makeField("Tempo symulacji");
 
 debugPanel.appendChild(titleEl);
-debugPanel.appendChild(document.createElement("br"));
-debugPanel.appendChild(dateEl);
+debugPanel.appendChild(dateField.wrapper);
 debugPanel.appendChild(dateSlider);
-debugPanel.appendChild(indexEl);
-debugPanel.appendChild(timeEl);
-debugPanel.appendChild(distanceEl);
-debugPanel.appendChild(paramsEl);
-debugPanel.appendChild(speedEl);
+debugPanel.appendChild(timeField.wrapper);
+debugPanel.appendChild(distanceField.wrapper);
+debugPanel.appendChild(speedField.wrapper);
 debugPanel.appendChild(speedSlider);
-debugPanel.appendChild(speedLabel);
+
+debugPanel.style.position = "absolute";
+
+const accent = document.createElement("div");
+accent.style.position = "absolute";
+accent.style.top = "0";
+accent.style.left = "0";
+accent.style.right = "0";
+accent.style.height = "3px";
+
+accent.style.background = "linear-gradient(90deg,#4da3ff,#73c2ff)";
+
+accent.style.borderRadius = "14px 14px 0 0";
+
+debugPanel.appendChild(accent);
 
 container.appendChild(debugPanel);
 
@@ -506,16 +568,14 @@ function animate() {
         const hoursElapsed = simulationIndex * STEP_HOURS;
         const daysElapsed = hoursElapsed / 24;
 
-        dateEl.textContent = "Data symulacji: " + simDate.toUTCString();
+        dateField.value.textContent = simDate.toUTCString();
 
-        indexEl.textContent = "Indeks kroku: " + simulationIndex.toFixed(2);
+        timeField.value.textContent = `${daysElapsed.toFixed(1)} dni`;
 
-        timeEl.textContent = `Czas od startu: ${hoursElapsed.toFixed(1)} h (${daysElapsed.toFixed(2)} dni)`;
+        distanceField.value.textContent = `${Math.round(distance).toLocaleString()} km`;
 
-        distanceEl.textContent = "Odległość Ziemia → Mars: " + Math.round(distance).toLocaleString() + " km";
-
-        paramsEl.textContent = `STEP_HOURS: ${STEP_HOURS} h | SCALE: ${SCALE} | SPEED: ${SIMULATION_SPEED}`;
-
+        speedField.value.textContent = formatSpeed(SIMULATION_SPEED);
+        
         earth.rotation.y += 0.01 * delta;
         mars.rotation.y += 0.008 * delta;
     }
