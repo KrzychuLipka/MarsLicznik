@@ -1,3 +1,10 @@
+//
+// PARAMETRY
+//
+const SCALE = 1 / 10000000;
+let SIMULATION_SPEED = 1;
+const ORBIT_STRIDE = 1;
+
 const container = document.getElementById("mars-distance-widget");
 
 //
@@ -107,11 +114,31 @@ const earth = new THREE.Mesh(
 );
 scene.add(earth);
 
+const earthGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.75, 64, 64), 
+    new THREE.MeshBasicMaterial({
+        color: 0x3366ff,
+        transparent: true,
+        opacity: 0.18 
+    })
+);
+scene.add(earthGlow);
+
 const mars = new THREE.Mesh(
     new THREE.SphereGeometry(0.32, 64, 64),
     new THREE.MeshPhongMaterial({ color: 0xff5533, shininess: 10 })
 );
 scene.add(mars);
+
+const marsGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.60, 64, 64),
+    new THREE.MeshBasicMaterial({
+        color: 0xff5533,
+        transparent: true,
+        opacity: 0.18
+    })
+);
+scene.add(marsGlow);
 
 //
 // LINIA ODLEGŁOŚCI (FIX artefaktów)
@@ -145,9 +172,10 @@ scene.add(distanceLine);
 // POZOSTAŁE INFORMACJE
 //
 
-const SIMULATION_START_DAYS_OFFSET = 0;
 const STEP_HOURS = 1; // musi odpowiadać backendowi
 const debugPanel = document.createElement("div");
+
+let simulationStartDate = "2025-01-01";
 
 debugPanel.style.position = "absolute";
 debugPanel.style.top = "20px";
@@ -161,24 +189,65 @@ debugPanel.style.background = "rgba(0,0,0,0.4)";
 debugPanel.style.padding = "12px";
 debugPanel.style.borderRadius = "8px";
 
+const titleEl = document.createElement("b");
+titleEl.textContent = "SYMULACJA NASA SPICE";
+
+const dateEl = document.createElement("div");
+
+const dateSlider = document.createElement("input");
+dateSlider.type = "date";
+dateSlider.value = simulationStartDate;
+
+const indexEl = document.createElement("div");
+const timeEl = document.createElement("div");
+const distanceEl = document.createElement("div");
+const paramsEl = document.createElement("div");
+
+const speedEl = document.createElement("div");
+speedEl.textContent = "";
+
+const speedSlider = document.createElement("input");
+speedSlider.type = "range";
+speedSlider.min = "0.01";   // ~15 min symulacji / sek
+speedSlider.max = "5";      // 5 dni / sek (już bardzo szybkie)
+speedSlider.step = "0.01";
+
+function setSimulationSpeed(v) {
+    SIMULATION_SPEED = v;
+    speedSlider.value = v;
+    speedEl.textContent = `Tempo symulacji: ${formatSpeed(SIMULATION_SPEED)}`;
+}
+
+setSimulationSpeed(SIMULATION_SPEED);
+
+const speedLabel = document.createElement("div");
+speedLabel.textContent = "Tempo (dni / sek):";
+speedLabel.style.marginTop = "8px";
+
+debugPanel.appendChild(titleEl);
+debugPanel.appendChild(document.createElement("br"));
+debugPanel.appendChild(dateEl);
+debugPanel.appendChild(dateSlider);
+debugPanel.appendChild(indexEl);
+debugPanel.appendChild(timeEl);
+debugPanel.appendChild(distanceEl);
+debugPanel.appendChild(paramsEl);
+debugPanel.appendChild(speedEl);
+debugPanel.appendChild(speedSlider);
+debugPanel.appendChild(speedLabel);
+
 container.appendChild(debugPanel);
+
+const controlsPanel = document.createElement("div");
 
 function getSimulationDate(simulationIndex) {
     const hoursFromStart = simulationIndex * STEP_HOURS;
     const secondsFromStart = hoursFromStart * 3600;
 
-    const startDate = new Date("2025-01-01T00:00:00Z"); // musi odpowiadać backendowi
+    const startDate = new Date(`${simulationStartDate}T00:00:00Z`);
 
     return new Date(startDate.getTime() + secondsFromStart * 1000);
 }
-
-//
-// PARAMETRY
-//
-
-const SCALE = 1 / 10000000;
-const SIMULATION_SPEED = 1.2;
-const ORBIT_STRIDE = 5;
 
 //
 // TRAJEKTORIE
@@ -205,22 +274,35 @@ function lerp(a, b, t) {
 // TRAJEKTORIE
 //
 
-async function loadTrajectory() {
+let loadingTrajectory = false;
+let trajectoryRequestId = 0;
+
+async function loadTrajectory(startDate = simulationStartDate) {
+
+    loadingTrajectory = true;
+    const requestId = ++trajectoryRequestId;
+
     try {
         const response = await fetch(
-            "http://localhost:5000/trajectory"
+            `http://localhost:5000/trajectory?start_date=${startDate}`//https://marsdistance.cenagis.edu.pl
         );
 
         const data = await response.json();
 
+        if (requestId !== trajectoryRequestId) return;
+
         earthTrack = data.earth || [];
         marsTrack = data.mars || [];
+        simulationStartDate = data.start_date || simulationStartDate;
+        simulationIndex = 0;
 
         createOrbitLines();
         frameCamera();
 
     } catch (err) {
         console.error("Błąd trajektorii:", err);
+    } finally {
+        loadingTrajectory = false;
     }
 }
 
@@ -243,11 +325,6 @@ function createOrbitLines() {
     const marsPoints = makePoints(marsTrack);
     const earthPoints = makePoints(earthTrack);
 
-    console.log("Mars first:", marsPoints[0]);
-    console.log("Mars last:", marsPoints[marsPoints.length - 1]);
-    console.log("Earth first:", earthPoints[0]);
-    console.log("Earth last:", earthPoints[earthPoints.length - 1]);
-
     if (earthOrbitLine) {
         scene.remove(earthOrbitLine);
         earthOrbitLine.geometry.dispose();
@@ -263,18 +340,22 @@ function createOrbitLines() {
     earthOrbitLine = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(makePoints(earthTrack)),
         new THREE.LineBasicMaterial({
-            color: 0x3355ff,
+            color: 0x4aa3ff,
             transparent: true,
-            opacity: 0.22
+            opacity: 0.4,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
         })
     );
 
     marsOrbitLine = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(makePoints(marsTrack)),
         new THREE.LineBasicMaterial({
-            color: 0xff5533,
+            color: 0xff6a2a,
             transparent: true,
-            opacity: 0.22
+            opacity: 0.4,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
         })
     );
 
@@ -331,15 +412,13 @@ distanceGeometry.setAttribute(
 function animate() {
     requestAnimationFrame(animate);
 
-    const now = performance.now();
-    const deltaMs = now - lastTime;
-
-    if (deltaMs > 100) {
-        lastTime = now;
+    if (loadingTrajectory) {
         renderer.render(scene, camera);
         return;
     }
 
+    const now = performance.now();
+    const deltaMs = now - lastTime;
     const delta = deltaMs / 16.666;
     lastTime = now;
 
@@ -367,12 +446,14 @@ function animate() {
             lerp(e0.y, e1.y, t) * SCALE,
             lerp(e0.z, e1.z, t) * SCALE
         );
+        earthGlow.position.copy(earth.position);
 
         mars.position.set(
             lerp(m0.x, m1.x, t) * SCALE,
             lerp(m0.y, m1.y, t) * SCALE,
             lerp(m0.z, m1.z, t) * SCALE
         );
+        marsGlow.position.copy(mars.position);
 
         // FIX: poprawne aktualizowanie linii bez artefaktów
         distancePositions[0] = earth.position.x;
@@ -394,29 +475,15 @@ function animate() {
         const hoursElapsed = simulationIndex * STEP_HOURS;
         const daysElapsed = hoursElapsed / 24;
 
-        // label.innerText =
-        //     `ODLEGŁOŚĆ ZIEMIA → MARS\n\n${Math.round(distance).toLocaleString()} km`;
-        debugPanel.innerHTML = `
-        <b>SYMULACJA NASA SPICE</b><br><br>
+        dateEl.textContent = "Data symulacji: " + simDate.toUTCString();
 
-        Data symulacji:<br>
-        ${simDate.toUTCString()}<br><br>
+        indexEl.textContent = "Indeks kroku: " + simulationIndex.toFixed(2);
 
-        Indeks kroku:<br>
-        ${simulationIndex.toFixed(2)}<br><br>
+        timeEl.textContent = `Czas od startu: ${hoursElapsed.toFixed(1)} h (${daysElapsed.toFixed(2)} dni)`;
 
-        Czas od startu:<br>
-        ${hoursElapsed.toFixed(1)} h<br>
-        (${daysElapsed.toFixed(2)} dni)<br><br>
+        distanceEl.textContent = "Odległość Ziemia → Mars: " + Math.round(distance).toLocaleString() + " km";
 
-        Odległość Ziemia → Mars:<br>
-        ${Math.round(distance).toLocaleString()} km<br><br>
-
-        Parametry:<br>
-        STEP_HOURS: ${STEP_HOURS} h<br>
-        SCALE: ${SCALE}<br>
-        SPEED: ${SIMULATION_SPEED}
-        `;
+        paramsEl.textContent = `STEP_HOURS: ${STEP_HOURS} h | SCALE: ${SCALE} | SPEED: ${SIMULATION_SPEED}`;
 
         earth.rotation.y += 0.01 * delta;
         mars.rotation.y += 0.008 * delta;
@@ -435,8 +502,33 @@ window.addEventListener("resize", () => {
     renderer.setSize(container.clientWidth, container.clientHeight);
 });
 
-//
-// START
-//
+dateSlider.addEventListener(
+    "change",
+    async () => {
+        simulationStartDate = dateSlider.value;
+        await loadTrajectory(simulationStartDate);
+    }
+);
+
+function formatSpeed(v) {
+    if (v >= 1) {
+        if (Math.abs(v - 1) < 0.001) return `1 dzień / sek`;
+        return `${v.toFixed(2)} dni / sek`;
+    }
+
+    const hours = v * 24;
+
+    if (hours >= 1) {
+        return `${hours.toFixed(2)} godz. / sek`;
+    }
+
+    const minutes = hours * 60;
+    return `${minutes.toFixed(2)} min / sek`;
+}
+
+speedSlider.addEventListener("input", () => {
+    setSimulationSpeed(parseFloat(speedSlider.value));
+});
+
 loadTrajectory();
 animate();
