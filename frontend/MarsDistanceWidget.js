@@ -453,7 +453,7 @@ async function loadTrajectory(startDate = simulationStartDate) {
 
     try {
         const response = await fetch(
-            `http://localhost:5000/trajectory?start_date=${startDate}`//https://marsdistance.cenagis.edu.pl
+            `https://marsdistance.cenagis.edu.pl/trajectory?start_date=${startDate}`//http://localhost:5000
         );
 
         const data = await response.json();
