@@ -115,11 +115,11 @@ const earth = new THREE.Mesh(
 scene.add(earth);
 
 const earthGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(0.75, 64, 64), 
+    new THREE.SphereGeometry(0.75, 64, 64),
     new THREE.MeshBasicMaterial({
         color: 0x3366ff,
         transparent: true,
-        opacity: 0.18 
+        opacity: 0.18
     })
 );
 scene.add(earthGlow);
@@ -145,10 +145,12 @@ scene.add(marsGlow);
 //
 
 const distanceGeometry = new THREE.BufferGeometry();
-const distanceMaterial = new THREE.LineBasicMaterial({
-    color: 0xffffff,
+const distanceMaterial = new THREE.LineDashedMaterial({
+    color: 0x66ccff,
     transparent: true,
-    opacity: 0.25
+    opacity: 0.3,   // cienkość linii
+    dashSize: 0.3,   // długość kreski
+    gapSize: 0.6     // przerwa
 });
 
 const distanceLine = new THREE.Line(distanceGeometry, distanceMaterial);
@@ -465,6 +467,7 @@ function animate() {
         distancePositions[5] = mars.position.z;
 
         distanceGeometry.attributes.position.needsUpdate = true;
+        distanceLine.computeLineDistances();
 
         const dx = mars.position.x - earth.position.x;
         const dy = mars.position.y - earth.position.y;
