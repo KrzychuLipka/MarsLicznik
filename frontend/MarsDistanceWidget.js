@@ -246,17 +246,18 @@ speedEl.textContent = "";
 
 const speedSlider = document.createElement("input");
 speedSlider.type = "range";
-speedSlider.min = "0.01";   // ~15 min symulacji / sek
-speedSlider.max = "5";      // 5 dni / sek
-speedSlider.step = "0.01";
+speedSlider.min = "1";   // 1 dzień / sek
+speedSlider.max = "10";  // 10 dni / sek
+speedSlider.step = "1";
 
 function setSimulationSpeed(v) {
+    v = Math.min(Math.max(v, 1), 10);
     SIMULATION_SPEED = v;
     speedSlider.value = v;
     speedEl.textContent = `Tempo symulacji: ${formatSpeed(SIMULATION_SPEED)}`;
 }
 
-setSimulationSpeed(SIMULATION_SPEED);
+setSimulationSpeed(1);
 
 function makeField(label) {
     const wrapper = document.createElement("div");
@@ -431,6 +432,9 @@ let trajectoryRequestId = 0;
 async function loadTrajectory(startDate = simulationStartDate) {
 
     loadingTrajectory = true;
+    simulationIndex = 0;
+    lastTime = performance.now();
+
     const requestId = ++trajectoryRequestId;
 
     try {
@@ -491,22 +495,14 @@ function createOrbitLines() {
     earthOrbitLine = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(makePoints(earthTrack)),
         new THREE.LineBasicMaterial({
-            color: 0x4aa3ff,
-            transparent: true,
-            opacity: 0.4,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
+            color: 0x4aa3ff
         })
     );
 
     marsOrbitLine = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(makePoints(marsTrack)),
         new THREE.LineBasicMaterial({
-            color: 0xff6a2a,
-            transparent: true,
-            opacity: 0.4,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
+            color: 0xff6a2a
         })
     );
 
@@ -569,7 +565,7 @@ function animate() {
     }
 
     const now = performance.now();
-    const deltaMs = now - lastTime;
+    const deltaMs = Math.min(now - lastTime, 50);
     const delta = deltaMs / 16.666;
     lastTime = now;
 
@@ -662,18 +658,20 @@ dateSlider.addEventListener(
 
 function formatSpeed(v) {
     if (v >= 1) {
-        if (Math.abs(v - 1) < 0.001) return `1 dzień / sek`;
-        return `${v.toFixed(2)} dni / sek`;
+        const days = Math.round(v);
+
+        if (days === 1) return `1 dzień / sek`;
+        return `${days} dni / sek`;
     }
 
-    const hours = v * 24;
+    const hours = Math.round(v * 24);
 
     if (hours >= 1) {
-        return `${hours.toFixed(2)} godz. / sek`;
+        return `${hours} godz. / sek`;
     }
 
-    const minutes = hours * 60;
-    return `${minutes.toFixed(2)} min / sek`;
+    const minutes = Math.round(v * 24 * 60);
+    return `${minutes} min / sek`;
 }
 
 speedSlider.addEventListener("input", () => {
